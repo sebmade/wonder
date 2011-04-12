@@ -26,7 +26,7 @@ public enum Priority {
     return rfc2445Value;
   }
 
-  public static NSArray<Priority> triggers() {
+  public static NSArray<Priority> priorities() {
     return new NSArray<Priority>(Priority.values());
   }
 

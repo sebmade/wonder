@@ -1,30 +1,36 @@
 package er.calendar2.enums;
 
 
+import net.fortuna.ical4j.model.property.Transp;
+
 import com.webobjects.foundation.NSArray;
 
-public enum Transparency {
+import er.extensions.foundation.ERXProperties;
+import er.extensions.localization.ERXLocalizer;
 
-  OPAQUE("Les événements affectent la disponibilité","OPAQUE"),
-  TRANSPARENT("Les événements n'affectent pas la disponibilité","TRANSPARENT");
+public enum Transparency  {
+
+  OPAQUE("calendar.transparency.opaque", Transp.OPAQUE),
+  TRANSPARENT("calendar.transparency.transparent", Transp.TRANSPARENT);
   
-  private String description;
-  private String rfc2445Value;
-
-  private Transparency(String description, String rfc2445Value) {
-    this.description = description;
-    this.rfc2445Value = rfc2445Value;
+  private String localizedDescription;
+  private Transp transpObject;
+  ERXLocalizer l = ERXLocalizer.localizerForLanguages(ERXProperties.arrayForKey("er.extensions.ERXLocalizer.availableLanguages"));
+  
+  private Transparency(String description, Transp transpObject) {
+    this.localizedDescription = description;
+    this.transpObject = transpObject;
   }
     
-  public String description() {
-    return description;
+  public String localizedDescription() {
+    return l.localizedStringForKey(localizedDescription);
   }
   
-  public String rfc2445Value() {
-    return rfc2445Value;
+  public Transp transpObject() {
+    return transpObject;
   }
-  
-  public static NSArray<Transparency> triggers() {
+    
+  public static NSArray<Transparency> transparencies() {
     return new NSArray<Transparency>(Transparency.values());
   }
   

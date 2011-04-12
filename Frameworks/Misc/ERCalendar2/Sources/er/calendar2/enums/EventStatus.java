@@ -5,7 +5,6 @@ import com.webobjects.foundation.NSArray;
 
 public enum EventStatus implements IStatus {
 
-  // Waiting and Deferred are custom values from Zimbra, not found in iCalendar spec.
   TENTATIVE("Tentatif","TENTATIVE"),
   CANCELLED("Annulé","CANCELLED"),
   COMPLETED("Complété","COMPLETED"),
@@ -27,7 +26,7 @@ public enum EventStatus implements IStatus {
     return zimbraValue;
   }
   
-  public static NSArray<EventStatus> triggers() {
+  public static NSArray<EventStatus> statuses() {
     return new NSArray<EventStatus>(EventStatus.values());
   }
   

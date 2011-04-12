@@ -2,6 +2,7 @@ package er.calendar2;
 
 import java.net.SocketException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.text.ParseException;
 
 import net.fortuna.ical4j.model.Date;
@@ -47,11 +48,11 @@ public abstract class ERCalendarObject {
   private NSTimestamp startTime;
   private Dur duration;
   private Geo geo;
-  private Location location;
+  private String location;
   private Organizer organizer;
   private Priority priority;
   private String summary;
-  private URI url;
+  private String url;
   protected CalendarComponent calComponent;
   private boolean isFullDay;
 
@@ -162,11 +163,11 @@ public abstract class ERCalendarObject {
     this.geo = geo;
   }
 
-  public Location location() {
+  public String location() {
     return location;
   }
 
-  public void setLocation(Location location) {
+  public void setLocation(String location) {
     this.location = location;
   }
 
@@ -194,11 +195,11 @@ public abstract class ERCalendarObject {
     this.summary = summary;
   }
 
-  public URI url() {
+  public String url() {
     return url;
   }
 
-  public void setUrl(URI url) {
+  public void setUrl(String url) {
     this.url = url;
   }
   
@@ -210,7 +211,7 @@ public abstract class ERCalendarObject {
     this.isFullDay = isFullDay;
   }
 
-  public CalendarComponent transformToICalObject() throws SocketException, ParseException {
+  public CalendarComponent transformToICalObject() throws SocketException, ParseException, URISyntaxException {
     UidGenerator ug = new UidGenerator("1");
     this.calComponent.getProperties().add(ug.generateUid());
 
@@ -251,7 +252,7 @@ public abstract class ERCalendarObject {
       properties().add(geo);
     }
     if (location != null) {
-      properties().add(location);
+      properties().add(new Location(location));
     }
     if (organizer != null) {
       properties().add(organizer);
@@ -261,7 +262,7 @@ public abstract class ERCalendarObject {
     }
     properties().add(new Summary(summary));
     if (url != null) {
-      properties().add(new Url(url));
+      properties().add(new Url(new URI(url)));
     }
     return calComponent;
   }

@@ -1,12 +1,12 @@
 package er.calendar2;
 
 import java.net.SocketException;
+import java.net.URISyntaxException;
 import java.text.ParseException;
 
 import net.fortuna.ical4j.model.component.CalendarComponent;
 import net.fortuna.ical4j.model.component.VEvent;
 import net.fortuna.ical4j.model.property.Status;
-import net.fortuna.ical4j.model.property.Transp;
 import er.calendar2.enums.EventStatus;
 import er.calendar2.enums.IStatus;
 import er.calendar2.enums.Transparency;
@@ -40,10 +40,10 @@ public class EREvent extends ERCalendarObject {
   }
 
   @Override
-  public CalendarComponent transformToICalObject() throws SocketException, ParseException {
+  public CalendarComponent transformToICalObject() throws SocketException, ParseException, URISyntaxException {
     VEvent event = (VEvent)super.transformToICalObject();
     if (transparency != null) {
-      properties().add(new Transp(transparency.rfc2445Value()));
+      properties().add(transparency.transpObject());
     }
     if (status != null) {
       properties().add(new Status(status.rfc2445Value()));

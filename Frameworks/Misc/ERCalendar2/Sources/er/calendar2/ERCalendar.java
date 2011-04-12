@@ -1,6 +1,7 @@
 package er.calendar2;
 
 import java.net.SocketException;
+import java.net.URISyntaxException;
 import java.text.ParseException;
 
 import net.fortuna.ical4j.model.Calendar;
@@ -63,7 +64,7 @@ public class ERCalendar {
     this.tasks.addObject(task);
   }
 
-  public Calendar transformToICalObject() throws SocketException, ParseException {
+  public Calendar transformToICalObject() throws SocketException, ParseException, URISyntaxException {
     calendar.getProperties().add(productId());
     calendar.getProperties().add(version);
     calendar.getProperties().add(scale);
