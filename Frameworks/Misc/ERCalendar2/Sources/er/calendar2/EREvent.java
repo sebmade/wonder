@@ -6,7 +6,9 @@ import java.text.ParseException;
 
 import net.fortuna.ical4j.model.component.CalendarComponent;
 import net.fortuna.ical4j.model.component.VEvent;
-import net.fortuna.ical4j.model.property.Status;
+
+import com.zimbra.common.soap.Element;
+
 import er.calendar2.enums.EventStatus;
 import er.calendar2.enums.IStatus;
 import er.calendar2.enums.Transparency;
@@ -43,12 +45,20 @@ public class EREvent extends ERCalendarObject {
   public CalendarComponent transformToICalObject() throws SocketException, ParseException, URISyntaxException {
     VEvent event = (VEvent)super.transformToICalObject();
     if (transparency != null) {
-      properties().add(transparency.transpObject());
+      properties().add(transparency.rfc2445Value());
     }
     if (status != null) {
-      properties().add(new Status(status.rfc2445Value()));
+      properties().add(status.rfc2445Value());
     }
     return event;
+  }
+  
+  @Override
+  public Element transformToZimbraObject() {
+    Element invite = super.transformToZimbraObject();
+    //inviteComponent.addAttribute(MailConstants.A_CAL_STATUS, "CONF");
+//  inviteComponent.addAttribute(MailConstants.A_APPT_TRANSPARENCY, "O");
+    return invite;
   }
 
 }

@@ -47,7 +47,7 @@ public enum ParticipantStatus {
     return rfc2445Value;
   }
   
-  public static NSArray<ParticipantStatus> roles() {
+  public static NSArray<ParticipantStatus> statuses() {
     return new NSArray<ParticipantStatus>(ParticipantStatus.values());
   }
   

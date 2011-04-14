@@ -1,28 +1,38 @@
 package er.calendar2.enums;
 
 
+import net.fortuna.ical4j.model.property.Clazz;
+
 import com.webobjects.foundation.NSArray;
 
-public enum Classification {
+import er.calendar2.ERCalendarPrincipal;
 
-  PUBLIC("Public","PUB"),
-  PRIVATE("Privé","PRI"),
-  CONFIDENTIAL("Confidentiel","CON");
+public enum Classification implements ICalendarProperty {
+
+  PUBLIC("Public", Clazz.PUBLIC, "PUB"),
+  PRIVATE("Privé", Clazz.PRIVATE, "PRI"),
+  CONFIDENTIAL("Confidentiel", Clazz.CONFIDENTIAL, "CON");
     
-  private String description;
-  private String rfc2445Value;
+  private String localizedDescription;
+  private Clazz rfc2445Value;
+  private String zimbraValue;
 
-  private Classification(String description, String rfc2445Value) {
-    this.description = description;
+  private Classification(String localizedDescription, Clazz rfc2445Value, String zimbraValue) {
+    this.localizedDescription = localizedDescription;
     this.rfc2445Value = rfc2445Value;
+    this.zimbraValue = zimbraValue;
   }
     
-  public String description() {
-    return description;
+  public String localizedDescription() {
+    return ERCalendarPrincipal.localizer().localizedStringForKey(localizedDescription);
   }
   
-  public String rfc2445Value() {
+  public Clazz rfc2445Value() {
     return rfc2445Value;
+  }
+  
+  public String zimbraValue() {
+    return zimbraValue;
   }
   
   public static NSArray<Classification> clazzes() {

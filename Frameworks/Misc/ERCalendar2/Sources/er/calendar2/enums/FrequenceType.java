@@ -50,7 +50,7 @@ public enum FrequenceType {
     return rfc2445Value;
   }
   
-  public static NSArray<FrequenceType> roles() {
+  public static NSArray<FrequenceType> types() {
     return new NSArray<FrequenceType>(FrequenceType.values());
   }
   

@@ -4,32 +4,37 @@ package er.calendar2.enums;
 import net.fortuna.ical4j.model.property.Transp;
 
 import com.webobjects.foundation.NSArray;
+import com.zimbra.cs.mailbox.calendar.IcalXmlStrMap;
 
-import er.extensions.foundation.ERXProperties;
-import er.extensions.localization.ERXLocalizer;
+import er.calendar2.ERCalendarPrincipal;
 
-public enum Transparency  {
+public enum Transparency implements ICalendarProperty {
 
-  OPAQUE("calendar.transparency.opaque", Transp.OPAQUE),
-  TRANSPARENT("calendar.transparency.transparent", Transp.TRANSPARENT);
+  OPAQUE("calendar.transparency.opaque", Transp.OPAQUE, IcalXmlStrMap.TRANSP_OPAQUE),
+  TRANSPARENT("calendar.transparency.transparent", Transp.TRANSPARENT, IcalXmlStrMap.TRANSP_TRANSPARENT);
   
   private String localizedDescription;
   private Transp transpObject;
-  ERXLocalizer l = ERXLocalizer.localizerForLanguages(ERXProperties.arrayForKey("er.extensions.ERXLocalizer.availableLanguages"));
+  private String zimbraValue;
   
-  private Transparency(String description, Transp transpObject) {
-    this.localizedDescription = description;
+  private Transparency(String localizedDescription, Transp transpObject, String zimbraValue) {
+    this.localizedDescription = localizedDescription;
     this.transpObject = transpObject;
+    this.zimbraValue = zimbraValue;
   }
     
   public String localizedDescription() {
-    return l.localizedStringForKey(localizedDescription);
+    return ERCalendarPrincipal.localizer().localizedStringForKey(localizedDescription);
   }
-  
-  public Transp transpObject() {
+
+  public Object rfc2445Value() {
     return transpObject;
   }
-    
+  
+  public String zimbraValue() {
+    return zimbraValue;
+  }
+      
   public static NSArray<Transparency> transparencies() {
     return new NSArray<Transparency>(Transparency.values());
   }

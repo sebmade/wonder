@@ -20,7 +20,7 @@ public enum Recurrence {
     return description;
   }
   
-  public static NSArray<Recurrence> triggers() {
+  public static NSArray<Recurrence> recurrences() {
     return new NSArray<Recurrence>(Recurrence.values());
   }
   

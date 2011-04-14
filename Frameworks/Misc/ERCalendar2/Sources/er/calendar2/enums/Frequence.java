@@ -42,7 +42,7 @@ public enum Frequence {
     return rfc2445Value;
   }
   
-  public static NSArray<Frequence> roles() {
+  public static NSArray<Frequence> frequences() {
     return new NSArray<Frequence>(Frequence.values());
   }
   

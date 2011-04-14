@@ -1,8 +1,9 @@
 package er.calendar2.enums;
 
+import net.fortuna.ical4j.model.property.Status;
+
 public interface IStatus {
 
-  public String description();
-  public String rfc2445Value();
+  public Status rfc2445Value();
     
 }
