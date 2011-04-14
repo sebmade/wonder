@@ -17,5 +17,13 @@
 	<classpathentry kind="lib" path="Libraries/commons-collections-3.1.jar"/>
 	<classpathentry kind="lib" path="Libraries/ical4j-1.0.jar"/>
 	<classpathentry kind="lib" path="Libraries/backport-util-concurrent-3.1.jar"/>
+	<classpathentry kind="lib" path="Libraries/commons-httpclient-3.1.jar"/>
+	<classpathentry kind="lib" path="Libraries/dom4j-1.5.jar"/>
+	<classpathentry kind="lib" path="Libraries/guava-r08.jar"/>
+	<classpathentry kind="lib" path="Libraries/jec.jar"/>
+	<classpathentry kind="lib" path="Libraries/vcard4j-1_1_3.jar"/>
+	<classpathentry kind="lib" path="Libraries/zimbracommon.jar"/>
+	<classpathentry kind="lib" path="Libraries/zimbrasoap.jar"/>
+	<classpathentry kind="lib" path="Libraries/zimbrastore.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
