@@ -25,5 +25,7 @@
 	<classpathentry kind="lib" path="Libraries/zimbracommon.jar"/>
 	<classpathentry kind="lib" path="Libraries/zimbrasoap.jar"/>
 	<classpathentry kind="lib" path="Libraries/zimbrastore.jar"/>
+	<classpathentry kind="lib" path="Libraries/json.jar"/>
+	<classpathentry kind="con" path="WOFramework/ERJavaMail"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

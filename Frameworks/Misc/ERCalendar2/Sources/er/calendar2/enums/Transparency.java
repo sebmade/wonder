@@ -1,6 +1,10 @@
 package er.calendar2.enums;
 
 
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Map;
+
 import net.fortuna.ical4j.model.property.Transp;
 
 import com.webobjects.foundation.NSArray;
@@ -22,12 +26,22 @@ public enum Transparency implements ICalendarProperty {
     this.transpObject = transpObject;
     this.zimbraValue = zimbraValue;
   }
+  
+  private static final Map<String,Transparency> zimbraLookup = new HashMap<String,Transparency>();
+  private static final Map<Transp,Transparency> rfc2445Lookup = new HashMap<Transp,Transparency>();
+  
+  static {
+    for(Transparency s : EnumSet.allOf(Transparency.class)) {
+      zimbraLookup.put(s.zimbraValue(), s);
+      rfc2445Lookup.put(s.rfc2445Value(), s);
+    }
+  }
     
   public String localizedDescription() {
     return ERCalendarPrincipal.localizer().localizedStringForKey(localizedDescription);
   }
 
-  public Object rfc2445Value() {
+  public Transp rfc2445Value() {
     return transpObject;
   }
   
@@ -42,4 +56,8 @@ public enum Transparency implements ICalendarProperty {
   private Transparency() {
   }
   
+  public static Transparency getByZimbraValue(String zimbraValue) { 
+    return zimbraLookup.get(zimbraValue); 
+  }
+
 }

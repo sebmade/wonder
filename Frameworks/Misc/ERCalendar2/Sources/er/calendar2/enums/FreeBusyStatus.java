@@ -1,6 +1,10 @@
 package er.calendar2.enums;
 
 
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Map;
+
 import net.fortuna.ical4j.model.property.BusyType;
 
 import com.webobjects.foundation.NSArray;
@@ -24,6 +28,16 @@ public enum FreeBusyStatus implements ICalendarProperty {
     this.rfc2445Value = rfc2445Value;
     this.zimbraValue = zimbraValue;
   }
+  
+  private static final Map<String,FreeBusyStatus> zimbraLookup = new HashMap<String,FreeBusyStatus>();
+  private static final Map<BusyType,FreeBusyStatus> rfc2445Lookup = new HashMap<BusyType,FreeBusyStatus>();
+
+  static {
+    for(FreeBusyStatus s : EnumSet.allOf(FreeBusyStatus.class)) {
+      zimbraLookup.put(s.zimbraValue(), s);
+      rfc2445Lookup.put(s.rfc2445Value(), s);
+    }
+  }
     
   public String localizedDescription() {
     return ERCalendarPrincipal.localizer().localizedStringForKey(localizedDescription);
@@ -42,6 +56,10 @@ public enum FreeBusyStatus implements ICalendarProperty {
   }
   
   private FreeBusyStatus() {
+  }
+  
+  public static FreeBusyStatus getByZimbraValue(String zimbraValue) { 
+    return zimbraLookup.get(zimbraValue); 
   }
   
 }

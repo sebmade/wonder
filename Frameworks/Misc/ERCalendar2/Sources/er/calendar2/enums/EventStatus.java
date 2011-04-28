@@ -1,29 +1,45 @@
 package er.calendar2.enums;
 
 
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Map;
+
 import net.fortuna.ical4j.model.property.Status;
+import net.fortuna.ical4j.model.property.Transp;
 
 import com.webobjects.foundation.NSArray;
-import com.zimbra.cs.mailbox.calendar.IcalXmlStrMap;
+import com.zimbra.cs.zclient.ZInvite.ZParticipantStatus;
+import com.zimbra.cs.zclient.ZInvite.ZStatus;
 
 import er.calendar2.ERCalendarPrincipal;
 
 public enum EventStatus implements IStatus, ICalendarProperty {
 
-  TENTATIVE("Tentatif", Status.VEVENT_TENTATIVE, IcalXmlStrMap.STATUS_TENTATIVE),
-  CANCELLED("Annulé", Status.VEVENT_CANCELLED, IcalXmlStrMap.STATUS_CANCELLED),
-  CONFIRMED("Confirmé", Status.VEVENT_CONFIRMED, IcalXmlStrMap.STATUS_CONFIRMED);
+  TENTATIVE("Tentatif", Status.VEVENT_TENTATIVE, ZStatus.TENT),
+  CANCELLED("Annulé", Status.VEVENT_CANCELLED, ZStatus.CANC),
+  CONFIRMED("Confirmé", Status.VEVENT_CONFIRMED, ZStatus.CONF);
   
   private String localizedDescription;
   private Status statusObject;
-  private String zimbraValue;
+  private ZStatus zimbraValue;
 
-  private EventStatus(String description, Status rfc2445Value, String zimbraValue) {
+  private EventStatus(String description, Status rfc2445Value, ZStatus zimbraValue) {
     this.localizedDescription = description;
     this.statusObject = rfc2445Value;
     this.zimbraValue = zimbraValue;
   }
     
+  private static final Map<ZStatus,EventStatus> zimbraLookup = new HashMap<ZStatus,EventStatus>();
+  private static final Map<Status,EventStatus> rfc2445Lookup = new HashMap<Status,EventStatus>();
+  
+  static {
+    for(EventStatus s : EnumSet.allOf(EventStatus.class)) {
+      zimbraLookup.put(s.zimbraValue(), s);
+      rfc2445Lookup.put(s.rfc2445Value(), s);
+    }
+  }
+  
   public String localizedDescription() {
     return ERCalendarPrincipal.localizer().localizedStringForKey(localizedDescription);
   }
@@ -32,7 +48,7 @@ public enum EventStatus implements IStatus, ICalendarProperty {
     return statusObject;
   }
   
-  public String zimbraValue() {
+  public ZStatus zimbraValue() {
     return zimbraValue;
   }
   
@@ -41,6 +57,10 @@ public enum EventStatus implements IStatus, ICalendarProperty {
   }
   
   private EventStatus() {
+  }
+  
+  public static EventStatus getByZimbraValue(ZStatus zimbraValue) { 
+    return zimbraLookup.get(zimbraValue); 
   }
   
 }

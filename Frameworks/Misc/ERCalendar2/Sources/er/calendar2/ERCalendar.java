@@ -5,7 +5,6 @@ import java.net.URISyntaxException;
 import java.text.ParseException;
 
 import net.fortuna.ical4j.model.Calendar;
-import net.fortuna.ical4j.model.DateTime;
 import net.fortuna.ical4j.model.component.VEvent;
 import net.fortuna.ical4j.model.component.VToDo;
 import net.fortuna.ical4j.model.property.CalScale;
@@ -14,6 +13,7 @@ import net.fortuna.ical4j.model.property.Version;
 
 import com.webobjects.foundation.NSArray;
 import com.webobjects.foundation.NSMutableArray;
+import com.zimbra.common.service.ServiceException;
 import com.zimbra.common.soap.Element;
 import com.zimbra.common.soap.Element.XMLElement;
 import com.zimbra.common.soap.MailConstants;
@@ -82,10 +82,10 @@ public class ERCalendar {
     }
     return this.calendar;
   }
-  
+
   public XMLElement transformToZimbraObject() throws SocketException, ParseException, URISyntaxException {
     XMLElement invitation = new XMLElement(MailConstants.E_INVITE);
-    
+
     for (EREvent event: events()) {
       Element vEvent = (Element)event.transformToZimbraObject();
       invitation.addElement(vEvent);
@@ -94,7 +94,26 @@ public class ERCalendar {
       Element vTodo = (Element)task.transformToZimbraObject();
       invitation.addElement(vTodo);
     }
+
     return invitation;
+  }
+
+  public static ERCalendar transformFromZimbraResponse(XMLElement je) throws ServiceException {
+    ERCalendar newCalendar = new ERCalendar();
+    newCalendar.setProductId(null);
+    Element appt = je.getElement("appt");
+
+    NSMutableArray<EREvent> events = new NSMutableArray<EREvent>();
+
+    for (Element inviteEl : appt.listElements(MailConstants.E_INVITE)) {
+      for (Element component : inviteEl.listElements(MailConstants.A_CAL_COMP)) {
+        EREvent event = new EREvent(newCalendar);
+        event.transformFromZimbraResponse(component, event);
+        events.addObject(event);
+      }
+    }
+    newCalendar.setEvents(events);
+    return newCalendar;
   }
 
 }

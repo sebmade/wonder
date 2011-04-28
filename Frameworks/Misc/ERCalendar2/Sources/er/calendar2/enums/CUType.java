@@ -1,28 +1,44 @@
 package er.calendar2.enums;
 
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Map;
+
 import net.fortuna.ical4j.model.parameter.CuType;
+import net.fortuna.ical4j.model.parameter.PartStat;
 
 import com.webobjects.foundation.NSArray;
-import com.zimbra.cs.mailbox.calendar.IcalXmlStrMap;
+import com.zimbra.cs.zclient.ZInvite.ZCalendarUserType;
+import com.zimbra.cs.zclient.ZInvite.ZParticipantStatus;
 
 import er.calendar2.ERCalendarPrincipal;
 
 public enum CUType implements ICalendarProperty {
 
-  INDIVIDUAL("Individu", CuType.INDIVIDUAL, IcalXmlStrMap.CUTYPE_INDIVIDUAL),
-  GROUP("Groupe", CuType.GROUP, IcalXmlStrMap.CUTYPE_GROUP),
-  RESOURCE("Ressource", CuType.RESOURCE, IcalXmlStrMap.CUTYPE_RESOURCE),
-  ROOM("Salle", CuType.ROOM, IcalXmlStrMap.CUTYPE_ROOM),
-  UNKNOW("Salle", CuType.UNKNOWN, IcalXmlStrMap.CUTYPE_UNKNOWN);
+  INDIVIDUAL("Individu", CuType.INDIVIDUAL, ZCalendarUserType.IND),
+  GROUP("Groupe", CuType.GROUP, ZCalendarUserType.GRO),
+  RESOURCE("Ressource", CuType.RESOURCE, ZCalendarUserType.RES),
+  ROOM("Salle", CuType.ROOM, ZCalendarUserType.ROO),
+  UNKNOW("Salle", CuType.UNKNOWN, ZCalendarUserType.UNK);
 
   private String localizedDescription;
   private CuType rfc2445Value;
-  private String zimbraValue;
+  private ZCalendarUserType zimbraValue;
 
-  private CUType(String localizedDescription, CuType rfc2445Value, String zimbraValue) {
+  private CUType(String localizedDescription, CuType rfc2445Value, ZCalendarUserType zimbraValue) {
     this.localizedDescription = localizedDescription;
     this.rfc2445Value = rfc2445Value;
     this.zimbraValue = zimbraValue;
+  }
+  
+  private static final Map<ZCalendarUserType,CUType> zimbraLookup = new HashMap<ZCalendarUserType,CUType>();
+  private static final Map<CuType,CUType> rfc2445Lookup = new HashMap<CuType,CUType>();
+  
+  static {
+    for(CUType s : EnumSet.allOf(CUType.class)) {
+      zimbraLookup.put(s.zimbraValue(), s);
+      rfc2445Lookup.put(s.rfc2445Value(), s);
+    }
   }
 
   public String localizedDescription() {
@@ -33,7 +49,7 @@ public enum CUType implements ICalendarProperty {
     return rfc2445Value;
   }
 
-  public String zimbraValue() {
+  public ZCalendarUserType zimbraValue() {
     return zimbraValue;
   }
 
@@ -42,6 +58,10 @@ public enum CUType implements ICalendarProperty {
   }
 
   private CUType() {
+  }
+  
+  public static CUType getByZimbraValue(ZCalendarUserType zimbraValue) { 
+    return zimbraLookup.get(zimbraValue); 
   }
 
 }

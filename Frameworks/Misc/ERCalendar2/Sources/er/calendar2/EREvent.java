@@ -7,7 +7,12 @@ import java.text.ParseException;
 import net.fortuna.ical4j.model.component.CalendarComponent;
 import net.fortuna.ical4j.model.component.VEvent;
 
+import com.webobjects.appserver.xml.WOXMLCoder;
+import com.webobjects.appserver.xml.WOXMLDecoder;
+import com.zimbra.common.service.ServiceException;
 import com.zimbra.common.soap.Element;
+import com.zimbra.common.soap.MailConstants;
+import com.zimbra.cs.zclient.ZInvite.ZStatus;
 
 import er.calendar2.enums.EventStatus;
 import er.calendar2.enums.IStatus;
@@ -52,13 +57,19 @@ public class EREvent extends ERCalendarObject {
     }
     return event;
   }
-  
+
   @Override
   public Element transformToZimbraObject() {
     Element invite = super.transformToZimbraObject();
-    //inviteComponent.addAttribute(MailConstants.A_CAL_STATUS, "CONF");
-//  inviteComponent.addAttribute(MailConstants.A_APPT_TRANSPARENCY, "O");
+    invite.addAttribute(MailConstants.A_CAL_STATUS, status().zimbraValue().toString());
+    invite.addAttribute(MailConstants.A_APPT_TRANSPARENCY, transparency().zimbraValue());
     return invite;
+  }
+
+  public void transformFromZimbraResponse(Element e, EREvent newObject) throws ServiceException {
+    super.transformFromZimbraResponse(e, newObject);
+    newObject.setStatus(EventStatus.getByZimbraValue(ZStatus.fromString(e.getAttribute(MailConstants.A_CAL_STATUS))));
+    newObject.setTransparency(Transparency.getByZimbraValue(e.getAttribute(MailConstants.A_APPT_TRANSPARENCY)));
   }
 
 }

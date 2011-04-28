@@ -2,6 +2,7 @@ package er.calendar2;
 
 import net.fortuna.ical4j.model.component.VToDo;
 
+import com.webobjects.appserver.xml.WOXMLCoder;
 import com.webobjects.foundation.NSTimestamp;
 
 import er.calendar2.enums.IStatus;
@@ -51,6 +52,15 @@ public class ERTask extends ERCalendarObject {
   
   public void setPercentComplete(int percentComplete) {
     this.percentComplete = percentComplete;
+  }
+
+  public Class<? extends ERTask> classForCoder() {
+    return this.getClass();
+  }
+
+  public void encodeWithWOXMLCoder(WOXMLCoder arg0) {
+    // TODO Auto-generated method stub
+    
   }
   
 }

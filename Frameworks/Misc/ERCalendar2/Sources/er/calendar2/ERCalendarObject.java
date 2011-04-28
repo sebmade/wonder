@@ -1,9 +1,14 @@
 package er.calendar2;
 
+import java.math.BigDecimal;
 import java.net.SocketException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.TimeZone;
 
 import net.fortuna.ical4j.model.Date;
 import net.fortuna.ical4j.model.DateTime;
@@ -21,20 +26,35 @@ import net.fortuna.ical4j.model.property.Summary;
 import net.fortuna.ical4j.model.property.Url;
 import net.fortuna.ical4j.util.UidGenerator;
 
+import com.webobjects.appserver.xml.WOXMLCoding;
 import com.webobjects.foundation.NSArray;
+import com.webobjects.foundation.NSLog;
 import com.webobjects.foundation.NSMutableArray;
-import com.webobjects.foundation.NSTimeZone;
 import com.webobjects.foundation.NSTimestamp;
+import com.zimbra.common.service.ServiceException;
 import com.zimbra.common.soap.Element;
 import com.zimbra.common.soap.Element.XMLElement;
 import com.zimbra.common.soap.MailConstants;
-import com.zimbra.cs.mailbox.MailboxVersion;
+import com.zimbra.cs.mailbox.calendar.ZCalendar.ZProperty;
+import com.zimbra.cs.zclient.ZAlarm;
+import com.zimbra.cs.zclient.ZAlarm.ZTriggerType;
+import com.zimbra.cs.zclient.ZDateTime;
+import com.zimbra.cs.zclient.ZInvite;
+import com.zimbra.cs.zclient.ZInvite.ZAttendee;
+import com.zimbra.cs.zclient.ZInvite.ZClass;
+import com.zimbra.cs.zclient.ZInvite.ZComponent.ZReply;
+import com.zimbra.cs.zclient.ZInvite.ZFreeBusyStatus;
+import com.zimbra.cs.zclient.ZInvite.ZOrganizer;
 
 import er.calendar2.enums.AlarmAction;
+import er.calendar2.enums.AttendeeRole;
+import er.calendar2.enums.CUType;
 import er.calendar2.enums.Classification;
 import er.calendar2.enums.FreeBusyStatus;
 import er.calendar2.enums.IStatus;
+import er.calendar2.enums.ParticipantStatus;
 import er.calendar2.enums.Priority;
+import er.extensions.validation.ERXValidationException;
 
 public abstract class ERCalendarObject {
 
@@ -56,14 +76,22 @@ public abstract class ERCalendarObject {
   private String url;
   protected CalendarComponent calComponent;
   private boolean isFullDay;
-  private NSTimeZone timezone;
-  private Alarm alarm;
+  private TimeZone timezone;
+  private NSMutableArray<Alarm> alarms;
+  private String uid;
+  private NSTimestamp lastModifiedDate;
+  private String parentId;
 
+  protected ERCalendarObject() {
+    
+  }
+  
   public ERCalendarObject(ERCalendar calendar, CalendarComponent calComponent) {
     this.calendar = calendar;
     this.calComponent = calComponent;
     this.attendees = new NSMutableArray<Attendee>();
     this.resources = new NSMutableArray<Attendee>();
+    this.alarms = new NSMutableArray<Alarm>();
   }
 
   public abstract IStatus status();
@@ -77,6 +105,14 @@ public abstract class ERCalendarObject {
     return calComponent.getProperties();
   }
 
+  public String uid() {
+    return uid;
+  }
+  
+  public void setUid(String uid) {
+    this.uid = uid;
+  }
+  
   public NSArray<Attendee> attendees() {
     return this.attendees;
   }
@@ -214,24 +250,45 @@ public abstract class ERCalendarObject {
     this.isFullDay = isFullDay;
   }
 
-  public NSTimeZone timezone() {
+  public TimeZone timezone() {
     return timezone;
   }
 
-  public void setTimezone(NSTimeZone timezone) {
+  public void setTimezone(TimeZone timezone) {
     this.timezone = timezone;
   }
 
-  public Alarm alarm() {
-    return alarm;
+  public NSArray<Alarm> alarms() {
+    return alarms.immutableClone();
   }
 
-  public void setAlarm(Alarm alarm) {
-    this.alarm = alarm;
+  public void setAlarm(NSArray<Alarm> alarms) {
+    this.alarms = alarms.mutableClone();
+  }
+  
+  public void addToAlarms(Alarm alarm) {
+    this.alarms.addObject(alarm);
+  }
+  
+  public NSTimestamp lastModifiedDate() {
+    return lastModifiedDate;
+  }
+  
+  public void setLastModifiedDate(NSTimestamp lastModifiedDate) {
+    this.lastModifiedDate = lastModifiedDate;
+  }
+  
+  public String parentId() {
+    return parentId;
+  }
+  
+  public void setParentId(String parentId) {
+    this.parentId = parentId;
   }
 
   public CalendarComponent transformToICalObject() throws SocketException, ParseException, URISyntaxException {
     UidGenerator ug = new UidGenerator("1");
+    uid = ug.generateUid().getValue();
     this.calComponent.getProperties().add(ug.generateUid());
 
     for (Attendee attendee: attendees) {
@@ -286,6 +343,151 @@ public abstract class ERCalendarObject {
     return calComponent;
   }
 
+  public void transformFromZimbraResponse(Element e, ERCalendarObject newObject) throws ServiceException {
+    NSLog.out.appendln(e);
+
+    NSLog.out.appendln("actual fb " + e.getAttribute(MailConstants.A_APPT_FREEBUSY_ACTUAL));
+    //NSLog.out.appendln("draft " + e.getAttributeBool(MailConstants.A_CAL_DRAFT));  // set to 1 if invite has changes that haven't been sent to attendees; for organizer only
+    // NSLog.out.appendln("method " + e.getAttributeBool(MailConstants.A_CAL_METHOD));
+    // NSLog.out.appendln("isException " + e.getAttributeBool(MailConstants.A_CAL_IS_EXCEPTION)); 
+    NSLog.out.appendln("isOrg " + e.getAttributeBool(MailConstants.A_CAL_ISORG));  // Am I the organizer? default = 0
+    NSLog.out.appendln("mSequenceNumber " + e.getAttributeLong(MailConstants.A_CAL_SEQUENCE));  // sequence number (default = 0)
+    // NSLog.out.appendln("mPercentCompleted " + e.getAttribute(MailConstants.A_TASK_PERCENT_COMPLETE));
+    // NSLog.out.appendln("mCompleted " + e.getAttribute(MailConstants.A_TASK_COMPLETED)); 
+    NSLog.out.appendln("mComponentNum " + e.getAttribute(MailConstants.A_CAL_COMPONENT_NUM));
+    NSLog.out.appendln("duration " + e.getOptionalElement(MailConstants.E_CAL_DURATION));
+    NSLog.out.appendln("mRecurrenceIdZ " + e.getAttribute(MailConstants.A_CAL_RECURRENCE_ID_Z, null));
+    NSLog.out.appendln("mIsNoBlob " + e.getAttributeBool(MailConstants.A_CAL_NO_BLOB, false)); //  set if invite has no blob data, i.e. all data is in db metadata
+    //NSLog.out.appendln("descEl " + e.getOptionalElement(MailConstants.E_CAL_DESCRIPTION));  // present if noBlob=1 and invite has plain text description
+    //NSLog.out.appendln("descHtmlElem " +  e.getOptionalElement(MailConstants.E_CAL_DESC_HTML));  // present if noBlob=1 and invite has html description
+    
+    List<Element> alarms = e.listElements(MailConstants.A_CAL_ALARM);
+    for (Element xmlAlarm: alarms) {
+      Alarm newAlarm = new Alarm();
+      ZAlarm zAlarm = new ZAlarm(xmlAlarm);
+      newAlarm.setAction(AlarmAction.getByZimbraValue(zAlarm.getAction()));
+      if (zAlarm.getTriggerType().equals(ZTriggerType.RELATIVE)) {
+        newAlarm.setAbsolute(false);
+        newAlarm.setDuration(zAlarm.getTriggerRelated().getMins());
+      } else  {
+        newAlarm.setAbsolute(true);
+        //newAlarm.setAlarmDate(endTime);
+      }
+      newAlarm.setDescription(zAlarm.getDescription());
+      List<ZInvite.ZAttendee> alarmAttendees = zAlarm.getAttendees();
+      if (alarmAttendees != null) {
+        for (ZInvite.ZAttendee alarmAttendee: alarmAttendees) {
+          newAlarm.setEmailAddress(alarmAttendee.getAddress());
+        }
+      }
+      newAlarm.setEmailSubject(zAlarm.getSummary());
+      newAlarm.setRepeatCount(zAlarm.getRepeatCount());
+      addToAlarms(newAlarm);
+    }
+    
+    ZOrganizer zOrg = new ZOrganizer(e.getOptionalElement(MailConstants.E_CAL_ORGANIZER));
+    Organizer organizer = new Organizer();
+    organizer.setEmailAddress(zOrg.getEmailAddress().getAddress());
+    organizer.setLdapUrl(zOrg.getDirectoryUrl());
+    organizer.setName(zOrg.getPersonalName());
+    organizer.setSentBy(zOrg.getSentBy());
+    organizer.setUrl(zOrg.getUrl());
+    
+    List<Element> attendees = e.listElements(MailConstants.E_CAL_ATTENDEE);
+    for (Element attendee: attendees) {
+      ZAttendee zAttendee = new ZAttendee(attendee);
+      Attendee newAttendee = new Attendee();
+      newAttendee.setEmailAddress(zAttendee.getAddress());
+      newAttendee.setCutype(CUType.getByZimbraValue(zAttendee.getCalendarUserType()));
+      //newAttendee.setDelegatedFrom(zAttendee.getDelegatedFrom());
+      //newAttendee.setDelegatedTo(zAttendee.getDelegatedTo());
+      newAttendee.setLdapUrl(zAttendee.getDirectoryUrl());
+      newAttendee.setMemberOf(zAttendee.getMember());
+      newAttendee.setPartStat(ParticipantStatus.getByZimbraValue(zAttendee.getParticipantStatus()));
+      newAttendee.setName(zAttendee.getPersonalName());
+      newAttendee.setRole(AttendeeRole.getByZimbraValue(zAttendee.getRole()));
+      newAttendee.setSentBy(zAttendee.getSentBy());
+      newAttendee.setUrl(zAttendee.getUrl());
+    }
+    
+    setClassification(Classification.getByZimbraValue(e.getAttribute(MailConstants.A_CAL_CLASS, ZClass.PUB.name())));
+    setFreeBusyStatus(FreeBusyStatus.getByZimbraValue(e.getAttribute(MailConstants.A_APPT_FREEBUSY, ZFreeBusyStatus.B.name())));
+    setIsFullDay(e.getAttributeBool(MailConstants.A_CAL_ALLDAY, false));
+    setSummary(e.getAttribute(MailConstants.A_NAME, null));
+    setLocation(e.getAttribute(MailConstants.A_CAL_LOCATION, null));
+
+    Iterator<Element> catIter = e.elementIterator(MailConstants.E_CAL_CATEGORY);
+    if (catIter.hasNext()) {
+      List<String> categories = new ArrayList<String>();
+      for (; catIter.hasNext(); ) {
+        String cat = catIter.next().getTextTrim();
+        categories.add(cat);
+      }
+      setCategories(categories.toString());
+    }
+
+    Iterator<Element> cmtIter = e.elementIterator(MailConstants.E_CAL_COMMENT);
+    if (cmtIter.hasNext()) {
+      List<String> comments = new ArrayList<String>();
+      for (; cmtIter.hasNext(); ) {
+        String cmt = cmtIter.next().getTextTrim();
+        comments.add(cmt);
+      }
+      setDescription(comments.toString());
+    }
+
+    Iterator<Element> cnIter = e.elementIterator(MailConstants.E_CAL_CONTACT);
+    if (cnIter.hasNext()) {
+      List<String> contacts = new ArrayList<String>();
+      for (; cnIter.hasNext(); ) {
+        String cn = cnIter.next().getTextTrim();
+        contacts.add(cn);
+      }
+      NSLog.out.appendln(contacts);
+    }
+
+    Element geoElem = e.getOptionalElement(MailConstants.E_CAL_GEO);
+    if (geoElem != null) {
+      com.zimbra.cs.mailbox.calendar.Geo zGeo = com.zimbra.cs.mailbox.calendar.Geo.parse(geoElem);
+      setGeo(new Geo(new BigDecimal(zGeo.getLatitude()), new BigDecimal(zGeo.getLongitude())));
+    }
+
+    setUrl(e.getAttribute(MailConstants.A_CAL_URL, null));
+
+    setPriority(Priority.getByZimbraValue(e.getAttribute(MailConstants.A_CAL_PRIORITY, "0")));
+
+    ArrayList<ZReply> mReplies = new ArrayList<ZReply>();
+    Element repliesEl = e.getOptionalElement(MailConstants.E_CAL_REPLIES);
+    if (repliesEl != null) {
+      for (Element replyEl : repliesEl.listElements(MailConstants.E_CAL_REPLY)) {
+        mReplies.add(new ZReply(replyEl));
+      }
+    }
+
+    Element startEl = e.getOptionalElement(MailConstants.E_CAL_START_TIME);
+    if (startEl != null) {
+      ZDateTime zDate = new ZDateTime(startEl);
+      setStartTime(new NSTimestamp(zDate.getDate()));
+      setTimezone(TimeZone.getTimeZone(zDate.getTimeZone().getID()));
+    }
+
+    Element endEl = e.getOptionalElement(MailConstants.E_CAL_END_TIME);
+    if (endEl != null) {
+      ZDateTime zDate = new ZDateTime(endEl);
+      setEndTime(new NSTimestamp(zDate.getDate()));
+      setTimezone(TimeZone.getTimeZone(zDate.getTimeZone().getID()));
+    }
+    
+    for (Element el: e.listElements(MailConstants.E_CAL_XPROP)) {
+      String xPropName = el.getAttribute(MailConstants.A_NAME);
+      String xPropValue = el.getAttribute(MailConstants.A_VALUE);
+      if ("X-RELATED-TO".equals(xPropName)) {
+        setParentId(xPropValue);
+      }
+    }
+    
+  }
+
   public Element transformToZimbraObject() {
 
     Element inviteComponent = new XMLElement(MailConstants.E_INVITE_COMPONENT);
@@ -302,7 +504,7 @@ public abstract class ERCalendarObject {
     dateDebut.addAttribute(MailConstants.E_CAL_TZ, timezone.getID());
     dateDebut.addAttribute(MailConstants.A_CAL_DATETIME, new DateTime(startTime.getTime()).toString());
 
-    Element dateFin = inviteComponent.addElement(MailConstants.E_CAL_START_TIME);
+    Element dateFin = inviteComponent.addElement(MailConstants.E_CAL_END_TIME);
     dateFin.addAttribute(MailConstants.E_CAL_TZ, timezone.getID());
     dateFin.addAttribute(MailConstants.A_CAL_DATETIME,new DateTime(endTime.getTime()).toString());
 
@@ -313,49 +515,64 @@ public abstract class ERCalendarObject {
     organisateur.addAttribute(MailConstants.A_DISPLAY, organizer.name());
 
     for (Attendee attendee: attendees) {
+      if (attendee.emailAddress() == null) {
+        // TODO: localization for the error message
+        throw new ERXValidationException("for zimbra servers, emailAddress or url must be specified", attendee, attendee.emailAddress());
+      }
       Element xmlAttendee = inviteComponent.addElement(MailConstants.E_CAL_ATTENDEE);
       xmlAttendee.addAttribute(MailConstants.A_ADDRESS, attendee.emailAddress());
       xmlAttendee.addAttribute(MailConstants.A_DISPLAY, attendee.name());
-      xmlAttendee.addAttribute(MailConstants.A_CAL_CUTYPE, attendee.cutype().zimbraValue());
+      xmlAttendee.addAttribute(MailConstants.A_CAL_CUTYPE, attendee.cutype().zimbraValue().toString());
     }
 
-    // cutype (calendar user type) = INDividual, GROup, RESource, ROOm, UNKnown
     for (Attendee resource: resources) {
+      if (resource.emailAddress() == null) {
+        // TODO: localization for the error message
+        throw new ERXValidationException("for zimbra servers, emailAddress or url must be specified", resource, resource.emailAddress());
+      }
       Element xmlResource = inviteComponent.addElement(MailConstants.E_CAL_ATTENDEE);
-      xmlResource.addAttribute(MailConstants.A_ADDRESS, resource.emailAddress());
+      xmlResource.addAttribute(MailConstants.A_ADDRESS, resource.emailAddress());                
       xmlResource.addAttribute(MailConstants.A_DISPLAY, resource.name());
-      xmlResource.addAttribute(MailConstants.A_CAL_CUTYPE, resource.cutype().zimbraValue());
+      xmlResource.addAttribute(MailConstants.A_CAL_CUTYPE, resource.cutype().zimbraValue().toString());
     }
 
     inviteComponent.addAttribute("category", categories);
 
-    Element alarme = inviteComponent.addElement(MailConstants.E_CAL_ALARM);
-    alarme.addAttribute(MailConstants.A_CAL_ALARM_ACTION, alarm.action().toString());
-    Element declencheur = alarme.addElement(MailConstants.E_CAL_ALARM_TRIGGER);
-    if (alarm.isAbsolute()) {
-      Element abs = declencheur.addElement(MailConstants.E_CAL_ALARM_ABSOLUTE);
-      abs.addAttribute(MailConstants.A_DATE, new DateTime(alarm.alarmDate().getTime()).toString());
-    } else {
-      Element rel = declencheur.addElement(MailConstants.E_CAL_ALARM_RELATIVE);   
-      if (alarm.isNegativeDuration()) {
-        rel.addAttribute(MailConstants.A_CAL_DURATION_NEGATIVE, "0");
+    for (Alarm alarm: alarms) {
+      Element alarme = inviteComponent.addElement(MailConstants.E_CAL_ALARM);
+      alarme.addAttribute(MailConstants.A_CAL_ALARM_ACTION, alarm.action().toString());
+      Element declencheur = alarme.addElement(MailConstants.E_CAL_ALARM_TRIGGER);
+      if (alarm.isAbsolute()) {
+        Element abs = declencheur.addElement(MailConstants.E_CAL_ALARM_ABSOLUTE);
+        abs.addAttribute(MailConstants.A_DATE, new DateTime(alarm.alarmDate().getTime()).toString());
       } else {
-        rel.addAttribute(MailConstants.A_CAL_DURATION_NEGATIVE, "1");        
+        Element rel = declencheur.addElement(MailConstants.E_CAL_ALARM_RELATIVE);   
+        if (alarm.isNegativeDuration()) {
+          rel.addAttribute(MailConstants.A_CAL_DURATION_NEGATIVE, "1");
+        } else {
+          rel.addAttribute(MailConstants.A_CAL_DURATION_NEGATIVE, "0");        
+        }
+        rel.addAttribute(MailConstants.A_CAL_ALARM_RELATED, "START");
+        rel.addAttribute(alarm.durationType().zimbraValue(), alarm.duration());
       }
-      rel.addAttribute(MailConstants.A_CAL_ALARM_RELATED, "START");
-      rel.addAttribute(alarm.durationType().zimbraValue(), alarm.duration());
-    }
-    alarme.addAttribute(MailConstants.E_CAL_ALARM_DESCRIPTION, alarm.description());
-    Element repeat = alarme.addElement(MailConstants.E_CAL_ALARM_REPEAT);
-    repeat.addAttribute(MailConstants.A_CAL_ALARM_COUNT, alarm.repeatCount());
-    if (alarm.action().equals(AlarmAction.EMAIL)) {
-      alarme.addAttribute(MailConstants.E_CAL_ALARM_SUMMARY, alarm.emailSubject());
-      Element xmlAttendee = alarme.addElement(MailConstants.E_CAL_ATTENDEE);
-      xmlAttendee.addAttribute(MailConstants.A_ADDRESS, alarm.emailSubject());
+      alarme.addAttribute(MailConstants.E_CAL_ALARM_DESCRIPTION, alarm.description());
+      Element repeat = alarme.addElement(MailConstants.E_CAL_ALARM_REPEAT);
+      repeat.addAttribute(MailConstants.A_CAL_ALARM_COUNT, alarm.repeatCount());
+      if (alarm.action().equals(AlarmAction.EMAIL)) {
+        alarme.addAttribute(MailConstants.E_CAL_ALARM_SUMMARY,alarm.emailSubject());
+        Element xmlAttendee = alarme.addElement(MailConstants.E_CAL_ATTENDEE);
+        xmlAttendee.addAttribute(MailConstants.A_ADDRESS, alarm.emailSubject());
+      }
     }
 
     inviteComponent.addAttribute(MailConstants.E_FRAG, description);
 
+    if (parentId() != null) {
+      Element relatedTo = inviteComponent.addElement(MailConstants.E_CAL_XPROP);
+      relatedTo.addAttribute(MailConstants.A_NAME,"X-RELATED-TO");
+      relatedTo.addAttribute(MailConstants.A_VALUE, parentId());
+    }
+    
     return inviteComponent;
   }
 
