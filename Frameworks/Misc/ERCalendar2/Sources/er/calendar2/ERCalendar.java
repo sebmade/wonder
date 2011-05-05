@@ -20,16 +20,15 @@ import com.zimbra.common.soap.MailConstants;
 
 public class ERCalendar {
 
-  private net.fortuna.ical4j.model.Calendar calendar;
   private NSMutableArray<EREvent> events;
   private NSMutableArray<ERTask> tasks;
   private ProdId productId;
   protected Version version;
   protected CalScale scale;
+  public static ProdId defaultProdId = new ProdId("-//Project Wonder//ERCalendar2//EN"); // TODO: that should go in a property
 
   public ERCalendar() {
-    calendar = new net.fortuna.ical4j.model.Calendar();
-    productId = new ProdId("-//Project Wonder//ERCalendar2//EN");
+    productId = defaultProdId;
     version = Version.VERSION_2_0;
     scale = CalScale.GREGORIAN;
     events = new NSMutableArray<EREvent>();
@@ -46,6 +45,10 @@ public class ERCalendar {
 
   public NSArray<EREvent> events() {
     return events.immutableClone();
+  }
+  
+  public NSArray<EREvent> getEvents() {
+    return events();
   }
 
   public void setEvents(NSArray<EREvent> events) {
@@ -68,30 +71,48 @@ public class ERCalendar {
     this.tasks.addObject(task);
   }
 
-  public Calendar transformToICalObject() throws SocketException, ParseException, URISyntaxException {
-    calendar.getProperties().add(productId());
-    calendar.getProperties().add(version);
-    calendar.getProperties().add(scale);
-    for (EREvent event: events()) {
-      VEvent vEvent = (VEvent)event.transformToICalObject();
-      calendar.getComponents().add(vEvent);
-    }
-    for (ERTask task: tasks()) {
-      VToDo vTodo = (VToDo)task.transformToICalObject();
-      calendar.getComponents().add(vTodo);
-    }
-    return this.calendar;
+  public Version version() {
+    return version;
   }
 
-  public XMLElement transformToZimbraObject() throws SocketException, ParseException, URISyntaxException {
+  public void setVersion(Version version) {
+    this.version = version;
+  }
+
+  public CalScale scale() {
+    return scale;
+  }
+
+  public void setScale(CalScale scale) {
+    this.scale = scale;
+  }
+
+  public static Calendar transformToICalObject(ERCalendar calendar) throws SocketException, ParseException, URISyntaxException {
+    net.fortuna.ical4j.model.Calendar icalCalendar = new net.fortuna.ical4j.model.Calendar();
+
+    icalCalendar.getProperties().add(calendar.productId());
+    icalCalendar.getProperties().add(calendar.version);
+    icalCalendar.getProperties().add(calendar.scale);
+    for (EREvent event: calendar.events()) {
+      VEvent vEvent = (VEvent)EREvent.transformToICalObject(event);
+      icalCalendar.getComponents().add(vEvent);
+    }
+    for (ERTask task: calendar.tasks()) {
+      VToDo vTodo = (VToDo)ERTask.transformToICalObject(task);
+      icalCalendar.getComponents().add(vTodo);
+    }
+    return icalCalendar;
+  }
+
+  public static XMLElement transformToZimbraObject(ERCalendar calendar) throws SocketException, ParseException, URISyntaxException {
     XMLElement invitation = new XMLElement(MailConstants.E_INVITE);
 
-    for (EREvent event: events()) {
-      Element vEvent = (Element)event.transformToZimbraObject();
+    for (EREvent event: calendar.events()) {
+      Element vEvent = EREvent.transformToZimbraObject(event);
       invitation.addElement(vEvent);
     }
-    for (ERTask task: tasks()) {
-      Element vTodo = (Element)task.transformToZimbraObject();
+    for (ERTask task: calendar.tasks()) {
+      Element vTodo = ERTask.transformToZimbraObject(task);
       invitation.addElement(vTodo);
     }
 
@@ -100,7 +121,7 @@ public class ERCalendar {
 
   public static ERCalendar transformFromZimbraResponse(XMLElement je) throws ServiceException {
     ERCalendar newCalendar = new ERCalendar();
-    newCalendar.setProductId(null);
+    newCalendar.setProductId(defaultProdId);
     Element appt = je.getElement("appt");
 
     NSMutableArray<EREvent> events = new NSMutableArray<EREvent>();
@@ -108,7 +129,7 @@ public class ERCalendar {
     for (Element inviteEl : appt.listElements(MailConstants.E_INVITE)) {
       for (Element component : inviteEl.listElements(MailConstants.A_CAL_COMP)) {
         EREvent event = new EREvent(newCalendar);
-        event.transformFromZimbraResponse(component, event);
+        EREvent.transformFromZimbraResponse(component, event);
         events.addObject(event);
       }
     }
