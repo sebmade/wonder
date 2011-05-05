@@ -7,8 +7,6 @@ import java.text.ParseException;
 import net.fortuna.ical4j.model.component.CalendarComponent;
 import net.fortuna.ical4j.model.component.VEvent;
 
-import com.webobjects.appserver.xml.WOXMLCoder;
-import com.webobjects.appserver.xml.WOXMLDecoder;
 import com.zimbra.common.service.ServiceException;
 import com.zimbra.common.soap.Element;
 import com.zimbra.common.soap.MailConstants;
@@ -46,28 +44,26 @@ public class EREvent extends ERCalendarObject {
     this.transparency = transparency;
   }
 
-  @Override
-  public CalendarComponent transformToICalObject() throws SocketException, ParseException, URISyntaxException {
-    VEvent event = (VEvent)super.transformToICalObject();
-    if (transparency != null) {
-      properties().add(transparency.rfc2445Value());
+  public static CalendarComponent transformToICalObject(EREvent event) throws SocketException, ParseException, URISyntaxException {
+    VEvent vEvent = (VEvent)ERCalendarObject.transformToICalObject(event, new VEvent());
+    if (event.transparency != null) {
+      vEvent.getProperties().add(event.transparency.rfc2445Value());
     }
-    if (status != null) {
-      properties().add(status.rfc2445Value());
+    if (event.status != null) {
+      vEvent.getProperties().add(event.status.rfc2445Value());
     }
-    return event;
+    return vEvent;
   }
 
-  @Override
-  public Element transformToZimbraObject() {
-    Element invite = super.transformToZimbraObject();
-    invite.addAttribute(MailConstants.A_CAL_STATUS, status().zimbraValue().toString());
-    invite.addAttribute(MailConstants.A_APPT_TRANSPARENCY, transparency().zimbraValue());
+  public static Element transformToZimbraObject(EREvent event) {
+    Element invite = ERCalendarObject.transformToZimbraObject(event);
+    invite.addAttribute(MailConstants.A_CAL_STATUS, event.status().zimbraValue().toString());
+    invite.addAttribute(MailConstants.A_APPT_TRANSPARENCY, event.transparency().zimbraValue());
     return invite;
   }
 
-  public void transformFromZimbraResponse(Element e, EREvent newObject) throws ServiceException {
-    super.transformFromZimbraResponse(e, newObject);
+  public static void transformFromZimbraResponse(Element e, EREvent newObject) throws ServiceException {
+    ERCalendarObject.transformFromZimbraResponse(e, newObject);
     newObject.setStatus(EventStatus.getByZimbraValue(ZStatus.fromString(e.getAttribute(MailConstants.A_CAL_STATUS))));
     newObject.setTransparency(Transparency.getByZimbraValue(e.getAttribute(MailConstants.A_APPT_TRANSPARENCY)));
   }

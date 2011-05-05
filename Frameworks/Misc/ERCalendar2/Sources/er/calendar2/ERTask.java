@@ -1,5 +1,10 @@
 package er.calendar2;
 
+import java.net.SocketException;
+import java.net.URISyntaxException;
+import java.text.ParseException;
+
+import net.fortuna.ical4j.model.component.CalendarComponent;
 import net.fortuna.ical4j.model.component.VToDo;
 
 import com.webobjects.appserver.xml.WOXMLCoder;
@@ -61,6 +66,11 @@ public class ERTask extends ERCalendarObject {
   public void encodeWithWOXMLCoder(WOXMLCoder arg0) {
     // TODO Auto-generated method stub
     
+  }
+  
+  public static CalendarComponent transformToICalObject(ERTask task) throws SocketException, ParseException, URISyntaxException {
+    VToDo vTodo = (VToDo)ERCalendarObject.transformToICalObject(task, new VToDo());
+    return vTodo;
   }
   
 }
