@@ -4,9 +4,10 @@ import com.webobjects.foundation.NSTimestamp;
 
 import er.calendar2.enums.AlarmAction;
 import er.calendar2.enums.AlarmDurationType;
+import er.extensions.eof.ERXKey;
 
 public class Alarm {
-
+  
   private AlarmAction action;
   private int duration;
   private int repeatCount;
@@ -17,6 +18,17 @@ public class Alarm {
   private AlarmDurationType durationType;
   private String emailAddress;
   private String emailSubject;
+  
+  public static final ERXKey<AlarmAction> ACTION = new ERXKey<AlarmAction>("action");
+  public static final ERXKey<Integer> DURATION = new ERXKey<Integer>("duration");
+  public static final ERXKey<Integer> REPEAT_COUNT = new ERXKey<Integer>("repeatCount");
+  public static final ERXKey<Boolean> IS_NEGATIVE_DURATION = new ERXKey<Boolean>("isNegativeDuration");
+  public static final ERXKey<String> DESCRIPTION = new ERXKey<String>("description");
+  public static final ERXKey<Boolean> IS_ABSOLUTE = new ERXKey<Boolean>("isAbsolute");
+  public static final ERXKey<NSTimestamp> ALARM_DATE = new ERXKey<NSTimestamp>("alarmDate");
+  public static final ERXKey<AlarmDurationType> DURATION_TYPE = new ERXKey<AlarmDurationType>("durationType");
+  public static final ERXKey<String> EMAIL_ADDRESS = new ERXKey<String>("emailAddress");
+  public static final ERXKey<String> EMAIL_SUBJECT = new ERXKey<String>("emailSubject");
   
   public Alarm() {
   }

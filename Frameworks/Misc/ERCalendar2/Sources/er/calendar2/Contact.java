@@ -1,5 +1,7 @@
 package er.calendar2;
 
+import er.extensions.eof.ERXKey;
+
 public abstract class Contact {
 
   private String emailAddress;
@@ -8,6 +10,13 @@ public abstract class Contact {
   private String sentBy;
   private String ldapUrl;
   private String language;
+  
+  public static final ERXKey<String> EMAIL_ADDRESS = new ERXKey<String>("emailAddress");
+  public static final ERXKey<String> URL = new ERXKey<String>("url");
+  public static final ERXKey<String> NAME = new ERXKey<String>("name");
+  public static final ERXKey<String> SENT_BY = new ERXKey<String>("sentBy");
+  public static final ERXKey<String> LDAP_URL = new ERXKey<String>("ldapUrl");
+  public static final ERXKey<String> LANGUAGE = new ERXKey<String>("language");
   
   public String emailAddress() {
     return emailAddress;

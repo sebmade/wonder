@@ -3,6 +3,7 @@ package er.calendar2;
 import er.calendar2.enums.AttendeeRole;
 import er.calendar2.enums.CUType;
 import er.calendar2.enums.ParticipantStatus;
+import er.extensions.eof.ERXKey;
 
 public class Attendee extends Contact {
 
@@ -13,6 +14,14 @@ public class Attendee extends Contact {
   private String memberOf; // http://tools.ietf.org/html/rfc2445#section-4.2.11
   private Contact delegatedFrom;
   private Contact delegatedTo;
+  
+  public static final ERXKey<AttendeeRole> ROLE = new ERXKey<AttendeeRole>("role");
+  public static final ERXKey<ParticipantStatus> PART_STAT = new ERXKey<ParticipantStatus>("partStat");
+  public static final ERXKey<Boolean> RSVP = new ERXKey<Boolean>("rsvp");
+  public static final ERXKey<CUType> CUTYPE = new ERXKey<CUType>("cutype");
+  public static final ERXKey<String> MEMBER_OF = new ERXKey<String>("memberOf");
+  public static final ERXKey<Contact> DELEGATED_FROM = new ERXKey<Contact>("delegatedFrom");
+  public static final ERXKey<Contact> DELEGATED_TO = new ERXKey<Contact>("delegatedTo");
   
   public Attendee() {
     
