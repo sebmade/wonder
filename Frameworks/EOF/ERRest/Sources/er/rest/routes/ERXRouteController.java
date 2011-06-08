@@ -6,6 +6,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 import org.apache.log4j.Logger;
 
@@ -45,16 +46,20 @@ import er.extensions.foundation.ERXStringUtilities;
 import er.extensions.localization.ERXLocalizer;
 import er.rest.ERXRequestFormValues;
 import er.rest.ERXRestClassDescriptionFactory;
+import er.rest.ERXRestContext;
 import er.rest.ERXRestFetchSpecification;
 import er.rest.ERXRestRequestNode;
-import er.rest.IERXRestDelegate;
+import er.rest.ERXRestUtils;
 import er.rest.format.ERXRestFormat;
 import er.rest.format.ERXWORestRequest;
 import er.rest.format.ERXWORestResponse;
 import er.rest.format.IERXRestParser;
+import er.rest.routes.jsr311.CookieParam;
+import er.rest.routes.jsr311.HeaderParam;
 import er.rest.routes.jsr311.Path;
 import er.rest.routes.jsr311.PathParam;
 import er.rest.routes.jsr311.Paths;
+import er.rest.routes.jsr311.QueryParam;
 import er.rest.util.ERXRestSchema;
 import er.rest.util.ERXRestTransactionRequestAdaptor;
 
@@ -80,6 +85,7 @@ public class ERXRouteController extends WODirectAction {
 	private NSKeyValueCoding _options;
 	private NSSet<String> _prefetchingKeyPaths;
 	private boolean _shouldDisposeEditingContext;
+	private ERXRestContext _restContext;
 
 	/**
 	 * Constructs a new ERXRouteController.
@@ -345,7 +351,7 @@ public class ERXRouteController extends WODirectAction {
 	 */
 	public NSDictionary<ERXRoute.Key, Object> routeObjects() {
 		if (_objects == null) {
-			_objects = ERXRoute.keysWithObjects(_routeKeys, delegate());
+			_objects = ERXRoute.keysWithObjects(_routeKeys, restContext());
 		}
 		return _objects;
 	}
@@ -357,9 +363,9 @@ public class ERXRouteController extends WODirectAction {
 	 * @param delegate the delegate to fetch with
 	 * @return the processed objects from the route keys
 	 */
-	public NSDictionary<ERXRoute.Key, Object> routeObjects(IERXRestDelegate delegate) {
+	public NSDictionary<ERXRoute.Key, Object> routeObjects(ERXRestContext restContext) {
 		if (_route != null) {
-			_objects = ERXRoute.keysWithObjects(_routeKeys, delegate);
+			_objects = ERXRoute.keysWithObjects(_routeKeys, restContext);
 		}
 		return _objects;
 	}
@@ -398,43 +404,86 @@ public class ERXRouteController extends WODirectAction {
 				type = (String) request().userInfo().objectForKey(ERXRouteRequestHandler.TypeKey);
 			}
 			
+//			if (type == null) {
+//				List<String> acceptTypesList = new LinkedList<String>();
+//				String accept = request().headerForKey("Accept");
+//				if (accept != null) {
+//					String[] acceptTypes = accept.split(",");
+//					for (String acceptType : acceptTypes) {
+//						int semiIndex = acceptType.indexOf(";");
+//						if (semiIndex == -1) {
+//							acceptTypesList.add(acceptType);
+//						} else { 
+//							acceptTypesList.add(acceptType.substring(0, semiIndex));
+//						}
+//					}
+//				}
+//			}
+			
 			/*
-			 * if (type == null) {
-			 *   List<String> acceptTypesList = new LinkedList<String>();
-			 *   String accept = request().headerForKey("Accept");
-			 *   if (accept != null) {
-			 *     String[] acceptTypes = accept.split(",");
-			 *     for (String acceptType : acceptTypes) {
-			 *       int semiIndex = acceptType.indexOf(";");
-			 *       if (semiIndex == -1) {
-			 *         acceptTypesList.add(acceptType);
-			 *       } else { 
-			 *         acceptTypesList.add(acceptType.substring(0, semiIndex));
-			 *       }
-			 *     }
-			 *   }
-			 * }
+			 * To trap things like this: 
+			 *   Content-Type: application/json
+			 * JBoss's RestEasy use this header
 			 */
-	
+			if (type == null) {
+				String contentType = request().headerForKey("Content-Type");
+				if (contentType != null) {
+					String[] types = contentType.split("/");
+					if (types.length == 2) {
+						type = types[1];
+					}
+				}
+			}
+
 			if (type == null) {
 				format = defaultFormat();
 			}
 			else {
-				format = ERXRestFormat.formatNamed(type);
+				format = formatNamed(type);
 			}
 		}
 		return format;
 	}
+	
+	/**
+	 * Returns the format to use for the given type (see ERXRestFormat constants).
+	 * 
+	 * @param type the type of format to use
+	 * @return the corresponding format
+	 */
+	protected ERXRestFormat formatNamed(String type) {
+		return ERXRestFormat.formatNamed(type);
+	}
 
 	/**
-	 * Returns the default rest delegate for this controller (an ERXRestRequestNode.EODelegate using the editing context
-	 * returned from editingContext()). Override this method to provide a custom delegate implementation for this
-	 * controller.
+ 	 * Creates a new rest context for the controller.
 	 * 
-	 * @return a default rest delegate
+	 * @return a new rest context for the controller
+	*/
+	protected ERXRestContext createRestContext() {
+		return new ERXRestContext(editingContext());
+	}
+    
+	/**
+	 * Returns the cached rest context for this controller. If a rest context doesn't yet
+	 * exist, this calls {{@link #createRestContext()} to create a new instance. 
+	 * 
+	 * @return the rest context for this controller
+	*/
+	public ERXRestContext restContext() {
+		if (_restContext == null) {
+			_restContext = createRestContext();
+		}
+		return _restContext;
+	}
+	
+	/**
+	 * Sets the rest context for this controller.
+	 * 
+	 * @param restContext the rest context for this controller
 	 */
-	protected IERXRestDelegate delegate() {
-		return IERXRestDelegate.Factory.delegateForEntityNamed(entityName(), editingContext());
+	public void setRestContext(ERXRestContext restContext) {
+		_restContext = restContext;
 	}
 
 	/**
@@ -464,6 +513,16 @@ public class ERXRouteController extends WODirectAction {
 	}
 	
 	/**
+	 * Returns the default format delegate to use for the given format (defaults to format.delegate()).
+	 * 
+	 * @param format the format to lookup
+	 * @return the delegate to use for this format
+	 */
+	protected ERXRestFormat.Delegate formatDelegateForFormat(ERXRestFormat format) {
+		return format.delegate();
+	}
+	
+	/**
 	 * Returns the request data in the form of an ERXRestRequestNode (which is a format-independent wrapper around
 	 * hierarchical data).
 	 * 
@@ -477,7 +536,7 @@ public class ERXRouteController extends WODirectAction {
 				if (parser == null) {
 					throw new IllegalStateException("There is no parser for the format '" + format.name() + "'.");
 				}
-				_requestNode = parser.parseRestRequest(new ERXWORestRequest(request()), format().delegate());
+				_requestNode = parser.parseRestRequest(new ERXWORestRequest(request()), formatDelegateForFormat(format), restContext());
 			}
 			catch (Throwable t) {
 				throw new RuntimeException("Failed to parse a " + format() + " request.", t);
@@ -496,7 +555,7 @@ public class ERXRouteController extends WODirectAction {
 	 */
 	@SuppressWarnings("unchecked")
 	public <T> T object(ERXKeyFilter filter) {
-		return (T)object(entityName(), filter, delegate());
+		return (T)object(entityName(), filter, restContext());
 	}
 
 	/**
@@ -511,7 +570,7 @@ public class ERXRouteController extends WODirectAction {
 	 */
 	@SuppressWarnings("unchecked")
 	public <T> T object(String entityName, ERXKeyFilter filter) {
-		return (T)object(entityName, filter, delegate());
+		return (T)object(entityName, filter, restContext());
 	}
 
 	/**
@@ -524,8 +583,8 @@ public class ERXRouteController extends WODirectAction {
 	 * @return the object from the request data
 	 */
 	@SuppressWarnings("unchecked")
-	public <T> T object(ERXKeyFilter filter, IERXRestDelegate delegate) {
-		return (T)requestNode().objectWithFilter(entityName(), filter, delegate);
+	public <T> T object(ERXKeyFilter filter, ERXRestContext restContext) {
+		return (T)requestNode().objectWithFilter(entityName(), filter, restContext);
 	}
 
 	/**
@@ -540,8 +599,8 @@ public class ERXRouteController extends WODirectAction {
 	 * @return the object from the request data
 	 */
 	@SuppressWarnings("unchecked")
-	public <T> T object(String entityName, ERXKeyFilter filter, IERXRestDelegate delegate) {
-		return (T)requestNode().objectWithFilter(entityName, filter, delegate);
+	public <T> T object(String entityName, ERXKeyFilter filter, ERXRestContext restContext) {
+		return (T)requestNode().objectWithFilter(entityName, filter, restContext);
 	}
 	
 	/**
@@ -569,7 +628,7 @@ public class ERXRouteController extends WODirectAction {
 	 */
 	@SuppressWarnings("unchecked")
 	public <T> T create(String entityName, ERXKeyFilter filter) {
-		return (T)create(entityName, filter, delegate());
+		return (T)create(entityName, filter, restContext());
 	}
 
 	/**
@@ -583,8 +642,8 @@ public class ERXRouteController extends WODirectAction {
 	 * @return the object from the request data
 	 */
 	@SuppressWarnings("unchecked")
-	public <T> T create(ERXKeyFilter filter, IERXRestDelegate delegate) {
-		return (T)requestNode().createObjectWithFilter(entityName(), filter, delegate);
+	public <T> T create(ERXKeyFilter filter, ERXRestContext restContext) {
+		return (T)requestNode().createObjectWithFilter(entityName(), filter, restContext);
 	}
 
 	/**
@@ -600,8 +659,8 @@ public class ERXRouteController extends WODirectAction {
 	 * @return the object from the request data
 	 */
 	@SuppressWarnings("unchecked")
-	public <T> T create(String entityName, ERXKeyFilter filter, IERXRestDelegate delegate) {
-		return (T)requestNode().createObjectWithFilter(entityName, filter, delegate);
+	public <T> T create(String entityName, ERXKeyFilter filter, ERXRestContext restContext) {
+		return (T)requestNode().createObjectWithFilter(entityName, filter, restContext);
 	}
 
 	/**
@@ -614,7 +673,7 @@ public class ERXRouteController extends WODirectAction {
 	 *            the filter to apply to the object for the purposes of updating (or null to not update)
 	 */
 	public void update(Object obj, ERXKeyFilter filter) {
-		update(obj, filter, delegate());
+		update(obj, filter, restContext());
 	}
 
 	/**
@@ -627,8 +686,8 @@ public class ERXRouteController extends WODirectAction {
 	 * @param delegate
          *            delegate to use
 	 */
-	public void update(Object obj, ERXKeyFilter filter, IERXRestDelegate delegate) {
-		requestNode().updateObjectWithFilter(obj, filter, delegate);
+	public void update(Object obj, ERXKeyFilter filter, ERXRestContext restContext) {
+		requestNode().updateObjectWithFilter(obj, filter, restContext);
 	}
 
 	/**
@@ -941,7 +1000,7 @@ public class ERXRouteController extends WODirectAction {
 	public WOActionResults response(ERXRestFormat format, EOClassDescription entity, NSArray<?> values, ERXKeyFilter filter) {
 		ERXRestRequestNode responseNode;
 		try {
-			responseNode = ERXRestRequestNode.requestNodeWithObjectAndFilter(entity, values, filter, delegate());
+			responseNode = ERXRestRequestNode.requestNodeWithObjectAndFilter(entity, values, filter, restContext());
 		}
 		catch (ObjectNotAvailableException e) {
 			return errorResponse(e, WOMessage.HTTP_STATUS_NOT_FOUND);
@@ -965,7 +1024,7 @@ public class ERXRouteController extends WODirectAction {
 	 * @return a WOResponse in the given format
 	 */
 	public WOActionResults response(ERXRestFormat format, ERXRestRequestNode responseNode) {
-		ERXRouteResults results = new ERXRouteResults(context(), format, responseNode);
+		ERXRouteResults results = new ERXRouteResults(context(), restContext(), format, responseNode);
 		return results;
 	}
 
@@ -1035,7 +1094,7 @@ public class ERXRouteController extends WODirectAction {
 	public WOActionResults response(ERXRestFormat format, Object value, ERXKeyFilter filter) {
 		ERXRestRequestNode responseNode;
 		try {
-			responseNode = ERXRestRequestNode.requestNodeWithObjectAndFilter(value, filter, delegate());
+			responseNode = ERXRestRequestNode.requestNodeWithObjectAndFilter(value, filter, restContext());
 		}
 		catch (ObjectNotAvailableException e) {
 			return errorResponse(e, WOMessage.HTTP_STATUS_NOT_FOUND);
@@ -1089,6 +1148,19 @@ public class ERXRouteController extends WODirectAction {
 		log.error("Request failed: " + request().uri() + ", " + errorMessage);
 		return response;
 	}
+	
+	/**
+	 * Returns an error response with the given HTTP status and without any body content
+	 * @param status
+	 *            the HTTP status code
+	 * @return an error WOResponse
+	 */
+	public WOActionResults errorResponse(int status) {
+		WOResponse response = WOApplication.application().createResponseInContext(context());
+		response.setStatus(status);
+		log.error("Request failed: " + request().uri() + ", " + status);
+		return response;
+	}
 
 	/**
 	 * Returns the response from a HEAD call to this controller.
@@ -1097,7 +1169,7 @@ public class ERXRouteController extends WODirectAction {
 	 */
 	public WOActionResults headAction() {
 		WOResponse response = WOApplication.application().createResponseInContext(context());
-		format().writer().appendHeadersToResponse(null, new ERXWORestResponse(response));
+		format().writer().appendHeadersToResponse(null, new ERXWORestResponse(response), restContext());
 		return response;
 	}
 
@@ -1229,7 +1301,7 @@ public class ERXRouteController extends WODirectAction {
 	 * @param actionName the unknown action name
 	 * @return WOActionResults
 	 */
-	protected WOActionResults performUnknownAction(String actionName) throws Throwable {
+	protected WOActionResults performUnknownAction(String actionName) throws Exception {
 		throw new FileNotFoundException("There is no action named '" + actionName + "Action' on '" + getClass().getSimpleName() + "'.");
 	}
 	
@@ -1258,7 +1330,7 @@ public class ERXRouteController extends WODirectAction {
 	public String responseContentForActionNamed(String actionName) {
 		return performActionNamed(actionName, true).generateResponse().contentString();
 	}
-	
+
 	/**
 	 * Performs the given action, optionally throwing exceptions instead of converting to http response codes.
 	 *  
@@ -1288,89 +1360,11 @@ public class ERXRouteController extends WODirectAction {
 			}
 
 			if (results == null && isAutomaticHtmlRoutingEnabled() && format() == ERXRestFormat.html()) {
-				String pageName = pageNameForAction(actionName);
-				if (_NSUtilities.classWithName(pageName) != null) {
-					try {
-						results = pageWithName(pageName);
-						if (!(results instanceof IERXRouteComponent)) {
-							log.error(pageName + " does not implement IERXRouteComponent, so it will be ignored.");
-							results = null;
-						}
-					}
-					catch (WOPageNotFoundException e) {
-						log.info(pageName + " does not exist, falling back to route controller.");
-						results = null;
-					}
-				}
-				else {
-					log.info(pageName + " does not exist, falling back to route controller.");
-				}
-				
-				if (results == null && shouldFailOnMissingHtmlPage()) {
-					results = performUnknownAction(actionName);
-				}
+				results = performHtmlActionNamed(actionName);
 			}
 
 			if (results == null) {
-				String actionMethodName = actionName + WODirectAction.actionText;
-		        Method actionMethod = _methodForAction(actionMethodName, "");
-		        if (actionMethod == null) {
-			        actionMethod = _methodForAction(actionName, "");
-			        if (actionMethod == null || (actionMethod.getAnnotation(Path.class) == null && actionMethod.getAnnotation(Paths.class) == null)) {
-			        	actionMethod = null;
-			        }
-		        }
-		        if (actionMethod == null || actionMethod.getParameterTypes().length > 0) {
-		        	int bestParameterCount = 0;
-		        	Method bestMethod = null;
-        			List<PathParam> bestParams = null;
-		        	for (Method method : getClass().getDeclaredMethods()) {
-		        		String methodName = method.getName();
-		        		boolean nameMatches = methodName.equals(actionMethodName);
-		        		if (!nameMatches && methodName.equals(actionName) && (method.getAnnotation(Path.class) != null || method.getAnnotation(Paths.class) != null)) {
-		        			nameMatches = true;
-		        		}
-		        		if (nameMatches) {
-		        			int parameterCount = 0;
-				        	List<PathParam> params = new LinkedList<PathParam>();
-		        			for (Annotation[] parameterAnnotations : method.getParameterAnnotations()) {
-		        				for (Annotation parameterAnnotation : parameterAnnotations) {
-		        					if (parameterAnnotation instanceof PathParam) {
-		        						PathParam pathParam = (PathParam)parameterAnnotation;
-		        						params.add(pathParam);
-		        						parameterCount ++;
-		        					}
-		        					else {
-		        						parameterCount = -1;
-		        						break;
-		        					}
-		        				}
-		        				if (parameterCount == -1) {
-		        					break;
-		        				}
-		        			}
-		        			if (parameterCount > bestParameterCount) {
-		        				bestMethod = method;
-		        				bestParameterCount = parameterCount;
-		        				bestParams = params;
-		        			}
-		        		}
-		        	}
-		        	if (bestMethod == null) {
-		        		performUnknownAction(actionName);
-		        	}
-		        	else {
-		        		Object[] params = new Object[bestParameterCount];
-		        		for (int paramNum = 0; paramNum < params.length; paramNum ++) {
-		        			PathParam param = bestParams.get(paramNum);
-		        			params[paramNum] = routeObjectForKey(param.value());
-		        		}
-		        		results = (WOActionResults)bestMethod.invoke(this, params);
-		        	}
-		        }
-		        else {
-	        		results = (WOActionResults)actionMethod.invoke(this, _NSUtilities._NoObjectArray);
-		        }
+				results = performRouteActionNamed(actionName);
 			}
 
 			if (results == null) {
@@ -1384,19 +1378,199 @@ public class ERXRouteController extends WODirectAction {
 			if (throwExceptions) {
 				throw NSForwardException._runtimeExceptionForThrowable(t);
 			}
-			Throwable meaningfulThrowble = ERXExceptionUtilities.getMeaningfulThrowable(t);
-			if (meaningfulThrowble instanceof ObjectNotAvailableException || meaningfulThrowble instanceof FileNotFoundException) {
-				results = errorResponse(meaningfulThrowble, WOMessage.HTTP_STATUS_NOT_FOUND);
-			}
-			else if (meaningfulThrowble instanceof SecurityException) {
-				results = errorResponse(meaningfulThrowble, WOMessage.HTTP_STATUS_FORBIDDEN);
-			}
-			else {
-				results = errorResponse(meaningfulThrowble, WOMessage.HTTP_STATUS_INTERNAL_ERROR);
-			}
-			// MS: Should we jam the exception in the response userInfo so the transaction adaptor can rethrow the real exception?
+			results = performActionNamedWithError(actionName, t);
 		}
 
+		results = processActionResults(results);
+		
+		return results;
+	}
+	
+	/**
+	 * If automatic HTML routing is enabled and this request used an HTML format, this method is called
+	 * to dispatch the HTML action.
+	 * 
+	 * @param actionName the name of the HTML action
+	 * @return the results of the action
+	 * @throws Exception if anything fails
+	 */
+	protected WOActionResults performHtmlActionNamed(String actionName) throws Exception {
+		WOActionResults results = null;
+		
+		String pageName = pageNameForAction(actionName);
+		if (_NSUtilities.classWithName(pageName) != null) {
+			try {
+				results = pageWithName(pageName);
+				if (!(results instanceof IERXRouteComponent)) {
+					log.error(pageName + " does not implement IERXRouteComponent, so it will be ignored.");
+					results = null;
+				}
+			}
+			catch (WOPageNotFoundException e) {
+				log.info(pageName + " does not exist, falling back to route controller.");
+				results = null;
+			}
+		}
+		else {
+			log.info(pageName + " does not exist, falling back to route controller.");
+		}
+		
+		if (results == null && shouldFailOnMissingHtmlPage()) {
+			results = performUnknownAction(actionName);
+		}
+		
+		return results;
+	}
+	
+	/**
+	 * If this request is for a normal route action, this method is called to dispatch it.
+	 * 
+	 * @param actionName the name of the action to perform
+	 * @return the results of the action
+	 * @throws Exception if anything fails
+	 */
+	protected WOActionResults performRouteActionNamed(String actionName) throws Exception {
+		WOActionResults results = null;
+		
+		String actionMethodName = actionName + WODirectAction.actionText;
+        Method actionMethod = _methodForAction(actionMethodName, "");
+        if (actionMethod == null) {
+	        actionMethod = _methodForAction(actionName, "");
+	        if (actionMethod == null || (actionMethod.getAnnotation(Path.class) == null && actionMethod.getAnnotation(Paths.class) == null)) {
+	        	actionMethod = null;
+	        }
+        }
+        
+        if (actionMethod == null || actionMethod.getParameterTypes().length > 0) {
+        	actionMethod = null;
+        	
+        	int bestMatchParameterCount = 0;
+			List<Annotation> bestMatchAnnotations = null;
+        	for (Method method : getClass().getDeclaredMethods()) {
+        		String methodName = method.getName();
+        		boolean nameMatches = methodName.equals(actionMethodName);
+        		if (!nameMatches && methodName.equals(actionName) && (method.getAnnotation(Path.class) != null || method.getAnnotation(Paths.class) != null)) {
+        			nameMatches = true;
+        		}
+        		if (nameMatches) {
+        			int parameterCount = 0;
+		        	List<Annotation> params = new LinkedList<Annotation>();
+        			for (Annotation[] parameterAnnotations : method.getParameterAnnotations()) {
+        				for (Annotation parameterAnnotation : parameterAnnotations) {
+        					if (parameterAnnotation instanceof PathParam || parameterAnnotation instanceof QueryParam || parameterAnnotation instanceof CookieParam || parameterAnnotation instanceof HeaderParam) {
+        						params.add(parameterAnnotation);
+        						parameterCount ++;
+        					}
+        					else {
+        						parameterCount = -1;
+        						break;
+        					}
+        				}
+        				if (parameterCount == -1) {
+        					break;
+        				}
+        			}
+        			if (parameterCount > bestMatchParameterCount) {
+        				actionMethod = method;
+        				bestMatchParameterCount = parameterCount;
+        				bestMatchAnnotations = params;
+        			}
+        		}
+        	}
+        	
+        	if (actionMethod == null) {
+        		results = performUnknownAction(actionName);
+        	}
+        	else if (bestMatchParameterCount == 0) {
+	    		results = performActionWithArguments(actionMethod, _NSUtilities._NoObjectArray);
+        	}
+        	else {
+        		results = performActionWithAnnotations(actionMethod, bestMatchAnnotations);
+        	}
+        }
+        else {
+    		results = performActionWithArguments(actionMethod, _NSUtilities._NoObjectArray);
+        }
+        return results;
+	}
+	
+	/**
+	 * Called when performRouteAction dispatches a method that uses parameter annotations.
+	 * 
+	 * @param actionMethod the action method to dispatch
+	 * @param parameterAnnotations the list of annotations
+	 * @return the results of the action
+	 * @throws Exception if anything fails
+	 */
+	protected WOActionResults performActionWithAnnotations(Method actionMethod, List<Annotation> parameterAnnotations) throws Exception {
+		Class<?>[] parameterTypes = actionMethod.getParameterTypes();
+		Object[] params = new Object[parameterAnnotations.size()];
+		for (int paramNum = 0; paramNum < params.length; paramNum ++) {
+			Annotation param = parameterAnnotations.get(paramNum);
+			if (param instanceof PathParam) {
+				params[paramNum] = routeObjectForKey(((PathParam)param).value());
+			}
+			else if (param instanceof QueryParam) {
+				String value = request().stringFormValueForKey(((QueryParam)param).value());
+				params[paramNum] = ERXRestUtils.coerceValueToTypeNamed(value, parameterTypes[paramNum].getName(), restContext(), true);
+			}
+			else if (param instanceof CookieParam) {
+				String value = request().cookieValueForKey(((CookieParam)param).value());
+				params[paramNum] = ERXRestUtils.coerceValueToTypeNamed(value, parameterTypes[paramNum].getName(), restContext(), true);
+			}
+			else if (param instanceof HeaderParam) {
+				String value = request().headerForKey(((HeaderParam)param).value());
+				params[paramNum] = ERXRestUtils.coerceValueToTypeNamed(value, parameterTypes[paramNum].getName(), restContext(), true);
+			}
+			else {
+				throw new IllegalArgumentException("Unknown parameter #" + paramNum + " of " + actionMethod.getName() + ".");
+			}
+		}
+		return performActionWithArguments(actionMethod, params);
+	}
+	
+	/**
+	 * Called when an action method is dispatched by performRouteAction in any form.
+	 *  
+	 * @param actionMethod the method to invoke
+	 * @param args the arguments to pass to the method
+	 * @return the results of the method
+	 * @throws Exception if anything fails
+	 */
+	protected WOActionResults performActionWithArguments(Method actionMethod, Object... args) throws Exception {
+		return (WOActionResults)actionMethod.invoke(this, args);
+	}
+	
+	/**
+	 * Called when performing an action fails, giving a chance to return an appropriate error result.
+	 * 
+	 * @param actionName the name of the action that attempted to perform
+	 * @param t the error that occurred
+	 * @return an appropriate error result
+	 */
+	protected WOActionResults performActionNamedWithError(String actionName, Throwable t) {
+		WOActionResults results = null;
+		Throwable meaningfulThrowble = ERXExceptionUtilities.getMeaningfulThrowable(t);
+		if (meaningfulThrowble instanceof ObjectNotAvailableException || meaningfulThrowble instanceof FileNotFoundException || meaningfulThrowble instanceof NoSuchElementException) {
+			results = errorResponse(meaningfulThrowble, WOMessage.HTTP_STATUS_NOT_FOUND);
+		}
+		else if (meaningfulThrowble instanceof SecurityException) {
+			results = errorResponse(meaningfulThrowble, WOMessage.HTTP_STATUS_FORBIDDEN);
+		}
+		else {
+			results = errorResponse(meaningfulThrowble, WOMessage.HTTP_STATUS_INTERNAL_ERROR);
+		}
+		// MS: Should we jam the exception in the response userInfo so the transaction adaptor can rethrow the real exception?
+		return results;
+	}
+	
+	/**
+	 * Before returning the action results, this method is called to perform any last minute processing.
+	 * 
+	 * @param results
+	 * @return
+	 */
+	protected WOActionResults processActionResults(WOActionResults results) {
 		WOContext context = context();
 		WOSession session = context._session();
 		// MS: This is sketchy -- should this be done in the request handler after we generate the response?
@@ -1414,6 +1588,7 @@ public class ERXRouteController extends WODirectAction {
 			}
 		}
 		
+		WOActionResults processedResults = results;
 		if (allowWindowNameCrossDomainTransport()) {
 			String windowNameCrossDomainTransport = request().stringFormValueForKey("windowname");
 			if ("true".equals(windowNameCrossDomainTransport)) {
@@ -1425,11 +1600,10 @@ public class ERXRouteController extends WODirectAction {
 				}
 				response.setContent("<html><script type=\"text/javascript\">window.name='" + content + "';</script></html>");
 				response.setHeader("text/html", "Content-Type");
-				results = response;
+				processedResults = response;
 			}
 		}
-		
-		return results;
+		return processedResults;
 	}
 	
 	/**

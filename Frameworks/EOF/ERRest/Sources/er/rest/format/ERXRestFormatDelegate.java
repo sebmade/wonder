@@ -26,7 +26,7 @@ public class ERXRestFormatDelegate implements ERXRestFormat.Delegate {
 	private boolean _writeTypeKey;
 
 	public ERXRestFormatDelegate() {
-		this(ERXRestFormatDelegate.ID_KEY, ERXRestFormatDelegate.TYPE_KEY, ERXRestFormatDelegate.NIL_KEY, true, ERXProperties.booleanForKeyWithDefault("ERXRest.pluralEntityNames", true), false, false);
+		this(ERXProperties.stringForKeyWithDefault("ERXRest.idKey", ERXRestFormatDelegate.ID_KEY), ERXProperties.stringForKeyWithDefault("ERXRest.typeKey", ERXRestFormatDelegate.TYPE_KEY), ERXProperties.stringForKeyWithDefault("ERXRest.nilKey", ERXRestFormatDelegate.NIL_KEY), ERXProperties.booleanForKeyWithDefault("ERXRest.writeNilKey", true), ERXProperties.booleanForKeyWithDefault("ERXRest.pluralEntityNames", true), false, false);
 	}
 
 	public ERXRestFormatDelegate(String idKey, String typeKey, String nilKey, boolean writeNilKey, boolean pluralNames, boolean underscoreNames, boolean arrayTypes) {
@@ -81,7 +81,7 @@ public class ERXRestFormatDelegate implements ERXRestFormat.Delegate {
 	}
 
 	public void nodeWillWrite(ERXRestRequestNode node) {
-		if (node.isRootNode()) {
+		if (node.isRootNode() && node.isArray()) {
 			if (_pluralNames) {
 				node.setName(ERXRestNameRegistry.registry().externalNameForInternalName(ERXLocalizer.englishLocalizer().plurifiedString(node.name(), 2)));
 			}
@@ -112,7 +112,7 @@ public class ERXRestFormatDelegate implements ERXRestFormat.Delegate {
 		}
 
 		if (node.isNull() && _writeNilKey) {
-			node.setAttributeForKey("true", _nilKey);
+			node.setAttributeForKey(Boolean.TRUE, _nilKey);
 		}
 		
 		if (_underscoreNames) {
